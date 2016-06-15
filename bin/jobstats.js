@@ -5,6 +5,8 @@ const program = require('commander')
 const async = require('async')
 const winston = require('winston')
 
+winston.level = process.env.LOG_LEVEL || 'info'
+
 const queue = require('../lib/index')
 
 program
