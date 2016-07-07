@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/FellowRoboticists/robot-queue-service#readme",
   "dependencies": {
+    "amqplib": "^0.4.2",
     "async": "^2.0.0-rc.6",
     "commander": "^2.9.0",
     "fivebeans": "^1.3.1",
