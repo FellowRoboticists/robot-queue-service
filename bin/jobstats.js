@@ -7,7 +7,7 @@ const fs = require('fs')
 
 winston.level = process.env.LOG_LEVEL || 'info'
 
-const amqp = require('amqplib')
+const queue = require('../lib/index')
 
 // Option default values
 const DEFAULT_HOST = 'localhost'
@@ -84,52 +84,40 @@ if (program.verbose) {
   console.log()
 }
 
-const checkQueue = (options, ch) => {
-  return ch.checkQueue(options.queue)
+const checkQueue = (options) => {
+  return queue.checkQueue(null, options.queue)
     .then((resp) => {
       console.log('checkQueue Results: %j', resp)
     })
 }
 
-const purgeQueue = (options, ch) => {
-  return ch.purgeQueue(options.queue)
+const purgeQueue = (options) => {
+  return queue.purgeQueue(null, options.queue)
     .then((resp) => console.log(`Queue '${options.queue}' purged. Messages deleted: %j`, resp))
 }
 
-const deleteQueue = (options, ch) => {
-  return ch.deleteQueue(options.queue, { ifUnused: true, ifEmpty: true })
+const deleteQueue = (options) => {
+  return queue.deleteQueue(null, options.queue, { ifUnused: true, ifEmpty: true })
     .then(() => console.log(`Queue '${options.queue}' deleted`))
 }
 
-const sendToQueue = (options, ch) => {
-  return new Promise((resolve, reject) => {
-    if (options.args.length < 1) return reject(new Error('Must specify argument containing the job to queue'))
+const sendToQueue = (options) => {
+  if (options.args.length < 1) return Promise.reject(new Error('Must specify argument containing the job to queue'))
 
-    ch.assertQueue(options.queue, { durable: false })
-      .then((resp) => {
-        let res = ch.sendToQueue(options.queue, new Buffer(options.args[0]))
-        console.log('Sent to queue: %j', res)
-      })
-      .then(resolve)
-      .catch(reject)
-  })
+  return queue.sendToQueue(null, options.queue, new Buffer(options.args[0]))
+    .then(() => console.log(`Message placed in '${options.queue}'`))
 }
 
-const consume = (options, ch) => {
+const consume = (options) => {
   /**
    * This function called when a new message is delivered.
    */
   let queueWorker = function qWorker (msg) {
     console.log('Message:')
-    console.log(`  Content: ${msg.content.toString()}`)
-    console.log('  Fields: %j', msg.fields)
-    console.log('  Properties: %j', msg.properties)
-
-    ch.ack(msg)
+    console.log(`  Content: ${msg}`)
   }
 
-  return ch.assertQueue(options.queue, { durable: false })
-    .then((res) => ch.consume(options.queue, queueWorker, { noAck: false }))
+  return queue.consume(null, options.queue, queueWorker)
 }
 
 /**
@@ -144,23 +132,23 @@ const commands = {
   consume: consume
 }
 
-const processCommand = (options, ch) => {
+const processCommand = (options) => {
   return new Promise((resolve, reject) => {
     if (!commands[options.command]) return reject(new Error(`Invalid command: ${options.command}`))
 
-    return commands[options.command](options, ch)
+    return commands[options.command](options)
       .then(resolve)
       .catch(reject)
   })
 }
 
 // Connect to the server
-amqp.connect(url(program), serverOptions(program))
+queue.connect(url(program), serverOptions(program))
   .then((conn) => {
-    return conn.createChannel()
-      .then((ch) => processCommand(program, ch).then(() => conn))
+    return queue.createChannel()
+      .then((ch) => processCommand(program).then(() => conn))
       .catch((err) => {
-        conn.close()
+        queue.close()
         throw err
       })
   })
@@ -172,7 +160,7 @@ amqp.connect(url(program), serverOptions(program))
       // the connection open for a period of time before
       // closing it. Just delaying the close for a second to
       // give these commands time to do their thing.
-      setTimeout(() => conn.close(), 1000)
+      setTimeout(() => queue.close(), 1000)
     }
   })
   .catch((err) => {
