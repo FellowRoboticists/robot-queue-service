@@ -1,6 +1,6 @@
 {
   "name": "robot-queue-service",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "description": "Beanstalk queuing service for robot communications.",
   "main": "lib/index.js",
   "scripts": {
